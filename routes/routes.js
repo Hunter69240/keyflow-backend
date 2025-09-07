@@ -1,38 +1,35 @@
-const express = require("express");
+const express = require('express');
 
 module.exports = (db) => {
-  const router = express.Router();
+    const router = express.Router();
 
-  // POST /results → save typing result
-  router.post("/", async (req, res) => {
-    const { target, userTyped, correctWords, totalWords, accuracy, wpm } = req.body;
-    console.log("Received body:", req.body);
+    // POST /results → save typing result
+    router.post('/', (req, res) => {
+        const { target, userTyped, correctWords, totalWords, accuracy, wpm } = req.body;
+        console.log("Received body:", req.body);
 
-    const sql = `
-      INSERT INTO users (target, userTyped, correctWords, totalWords, accuracy, wpm)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id
-    `;
+        const sql = `INSERT INTO users (target, userTyped, correctWords, totalWords, accuracy, wpm)
+                     VALUES (?, ?, ?, ?, ?, ?)`;
+        db.run(sql, [target, userTyped, correctWords, totalWords, accuracy, wpm], function(err){
+            if(err){
+                console.error('Error inserting data', err.message);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.status(201).json({ success: true, id: this.lastID });
+        });
+    });
 
-    try {
-      const result = await db.query(sql, [target, userTyped, correctWords, totalWords, accuracy, wpm]);
-      res.status(201).json({ success: true, id: result.rows[0].id });
-    } catch (err) {
-      console.error("Error inserting data", err.message);
-      res.status(500).json({ error: "Database error" });
-    }
-  });
+    // GET /results → fetch all typing results
+    router.get('/', (req, res) => {
+        const sql = `SELECT * FROM users ORDER BY created_at DESC`;
+        db.all(sql, [], (err, rows) => {
+            if(err){
+                console.error('Error fetching data', err.message);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            res.json(rows);
+        });
+    });
 
-  // GET /results → fetch all typing results
-  router.get("/", async (req, res) => {
-    try {
-      const result = await db.query("SELECT * FROM users ORDER BY created_at DESC");
-      res.json(result.rows);
-    } catch (err) {
-      console.error("Error fetching data", err.message);
-      res.status(500).json({ error: "Database error" });
-    }
-  });
-
-  return router;
+    return router;
 };

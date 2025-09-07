@@ -1,32 +1,39 @@
-const express = require("express");
-const cors = require("cors");
-const { Pool } = require("pg");
-const routes = require("./routes/results");
+const express = require('express');
+const cors = require('cors');
+const sqlite3 = require('sqlite3').verbose();
+const routes = require('./routes/routes'); // routes will receive db instance
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = 3000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Setup Neon DB connection
-const db = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // required by Neon
+// Open SQLite database
+const db = new sqlite3.Database('./database.db', (err) => {
+    if (err) {
+        console.error('Error opening database', err.message);
+    } else {
+        console.log('Connected to SQLite database');
+        // Create table if it doesn't exist
+        db.run(`
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                target TEXT,
+                userTyped TEXT,
+                correctWords INTEGER,
+                totalWords INTEGER,
+                accuracy REAL,
+                wpm REAL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `, (err) => {
+            if (err) console.error('Error creating table', err.message);
+        });
+    }
 });
 
-db.connect()
-  .then(() => console.log("✅ Connected to Neon Postgres"))
-  .catch((err) => console.error("❌ Connection error:", err.message));
+// Pass the db instance to routes
+app.use('/results', routes(db));
 
-// Use routes
-app.use("/results", routes(db));
-
-// Start server (for local dev)
-if (require.main === module) {
-  app.listen(port, () => console.log(`🚀 Server running at http://localhost:${port}`));
-}
-
-// Export app (for Vercel serverless)
-module.exports = app;
+app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
